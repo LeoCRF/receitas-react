@@ -1,8 +1,27 @@
 
+import { useEffect, useState } from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from '../../lib/firebase';
 
 export default function TabsLayout() {
+  const [user, setUser] = useState<any>(undefined);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+    });
+
+    return unsubscribe;
+  }, []);
+
+  if (user === undefined) {
+    return null;
+  }
+
+  const isLoggedIn = user !== null;
+
   return (
     <Tabs
       screenOptions={{
@@ -27,10 +46,11 @@ export default function TabsLayout() {
         options={{
           title: 'Início',
           tabBarLabel: 'Início',
+          tabBarItemStyle: { flex: 1 },
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons
               name={focused ? 'home' : 'home-outline'}
-              color={typeof color === 'number' ? '#000000' : color ?? '#000000'}
+              color={typeof color === 'number' || color === null ? undefined : color}
               size={size}
             />
           ),
@@ -42,10 +62,11 @@ export default function TabsLayout() {
         options={{
           title: 'Favoritos',
           tabBarLabel: 'Favoritos',
+          tabBarButton: isLoggedIn ? undefined : () => null,
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons
               name={focused ? 'heart' : 'heart-outline'}
-              color={typeof color === 'number' ? '#000000' : color ?? '#000000'}
+              color={typeof color === 'number' || color === null ? undefined : color}
               size={size}
             />
           ),
@@ -57,11 +78,28 @@ export default function TabsLayout() {
         options={{
           title: 'Nova receita',
           tabBarLabel: 'Adicionar',
+          tabBarButton: isLoggedIn ? undefined : () => null,
           tabBarIcon: ({ color, size }) => (
             <Ionicons
               name="add-circle-outline"
-              color={typeof color === 'number' ? '#000000' : color ?? '#000000'}
+              color={typeof color === 'number' || color === null ? undefined : color}
               size={size + 5}
+            />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="account"
+        options={{
+          title: isLoggedIn ? 'Perfil' : 'Entrar',
+          tabBarLabel: isLoggedIn ? 'Perfil' : 'Entrar',
+          tabBarItemStyle: { flex: 1 },
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons
+              name={focused ? 'person' : 'person-outline'}
+              color={typeof color === 'number' || color === null ? undefined : color}
+              size={size}
             />
           ),
         }}
@@ -74,7 +112,7 @@ export default function TabsLayout() {
         }}
       />
 
-    <Tabs.Screen
+      <Tabs.Screen
         name="explore"
         options={{
           href: null,

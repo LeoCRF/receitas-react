@@ -37,8 +37,8 @@ export default function LoginScreen() {
       setMessageType('error');
 
       if (error.code === 'auth/invalid-credential' ||
-          error.code === 'auth/wrong-password' ||
-          error.code === 'auth/user-not-found') {
+        error.code === 'auth/wrong-password' ||
+        error.code === 'auth/user-not-found') {
         setMessage('E-mail ou senha incorretos');
       } else if (error.code === 'auth/invalid-email') {
         setMessage('Digite um endereço de e-mail válido');
@@ -57,7 +57,7 @@ export default function LoginScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>

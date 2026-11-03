@@ -1,5 +1,5 @@
 
-import { useCallback, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -8,7 +8,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 
 import RecipeCard from '../../components/RecipeCard';
 import { getRecipes, type Meal } from '../../lib/recipes';
@@ -20,52 +20,59 @@ export default function HomeScreen() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [visibleCount, setVisibleCount] = useState(10);
 
-  useFocusEffect(
-    useCallback(() => {
-      let active = true;
+  useEffect(() => {
+  let active = true;
 
-      async function loadRecipes() {
-        setLoading(true);
-        setError('');
+  async function loadRecipes() {
+    setLoading(true);
+    setError('');
 
-        try {
-          const apiRecipes = await getRecipes();
+    try {
+      const allRecipes = await getRecipes();
 
-          if (active) {
-            setRecipes(apiRecipes);
-          }
-        } catch {
-          if (active) {
-            setError(
-              'Não foi possível carregar as receitas. Tente novamente mais tarde.'
-            );
-          }
-        } finally {
-          if (active) {
-            setLoading(false);
-          }
-        }
+      if (active) {
+        setRecipes(allRecipes);
       }
+    } catch {
+      if (active) {
+        setError(
+          'Não foi possível carregar as receitas. Tente novamente mais tarde.'
+        );
+      }
+    } finally {
+      if (active) {
+        setLoading(false);
+      }
+    }
+  }
 
-      loadRecipes();
+  loadRecipes();
 
-      return () => {
-        active = false;
-      };
-    }, [])
-  );
+  return () => {
+    active = false;
+  };
+}, []);
 
   const filteredRecipes = recipes.filter((recipe) =>
     recipe.strMeal.toLowerCase().includes(search.toLowerCase())
   );
 
+  const visibleRecipes = filteredRecipes.slice(0, visibleCount);
+
+  function loadMoreRecipes() {
+    if (visibleCount < filteredRecipes.length) {
+      setVisibleCount((current) =>
+        Math.min(current + 10, filteredRecipes.length)
+      );
+    }
+  }
+
   return (
     <View style={styles.container}>
       <Text style={styles.eyebrow}>SUA COZINHA</Text>
-
       <Text style={styles.title}>Receitas</Text>
-
       <Text style={styles.subtitle}>
         Encontre uma receita para preparar
       </Text>
@@ -75,7 +82,10 @@ export default function HomeScreen() {
         placeholder="Buscar uma receita..."
         placeholderTextColor="#8B8179"
         value={search}
-        onChangeText={setSearch}
+        onChangeText={(value) => {
+          setSearch(value);
+          setVisibleCount(10);
+        }}
       />
 
       {loading ? (
@@ -88,7 +98,7 @@ export default function HomeScreen() {
         <Text style={styles.message}>{error}</Text>
       ) : (
         <FlatList
-          data={filteredRecipes}
+          data={visibleRecipes}
           keyExtractor={(item) => item.idMeal}
           renderItem={({ item }) => (
             <RecipeCard
@@ -101,6 +111,11 @@ export default function HomeScreen() {
               }}
             />
           )}
+          onEndReached={loadMoreRecipes}
+          onEndReachedThreshold={0.5}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={5}
           contentContainerStyle={styles.list}
           ListEmptyComponent={
             <Text style={styles.message}>
@@ -121,28 +136,24 @@ const styles = StyleSheet.create({
     paddingTop: 58,
     paddingHorizontal: 20,
   },
-
   eyebrow: {
     color: '#B85C38',
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 1.5,
   },
-
   title: {
     color: '#34251F',
     fontSize: 34,
     fontWeight: '800',
     marginTop: 5,
   },
-
   subtitle: {
     color: '#776A60',
     fontSize: 15,
     marginTop: 5,
     marginBottom: 20,
   },
-
   search: {
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
@@ -154,15 +165,12 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     fontSize: 15,
   },
-
   list: {
     paddingBottom: 30,
   },
-
   loader: {
     marginTop: 40,
   },
-
   message: {
     color: '#776A60',
     textAlign: 'center',

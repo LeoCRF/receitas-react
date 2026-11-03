@@ -1,6 +1,10 @@
+
 import { initializeApp } from 'firebase/app';
+import { getAuth, initializeAuth } from 'firebase/auth';
+// @ts-expect-error Exportação disponível na versão React Native do Firebase
+import { getReactNativePersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
-import { initializeAuth } from 'firebase/auth';
+import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const firebaseConfig = {
@@ -14,6 +18,11 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-export const auth = initializeAuth(app);
+export const auth =
+  Platform.OS === 'web'
+    ? getAuth(app)
+    : initializeAuth(app, {
+        persistence: getReactNativePersistence(AsyncStorage),
+      });
 
 export const db = getFirestore(app);

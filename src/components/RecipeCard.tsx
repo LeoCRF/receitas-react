@@ -1,5 +1,11 @@
 
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated';
+
 import type { Meal } from '../lib/recipes';
 
 type Props = {
@@ -8,27 +14,54 @@ type Props = {
 };
 
 export default function RecipeCard({ meal, onPress }: Props) {
+  const scale = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  function handlePressIn() {
+    scale.value = withSpring(0.97, {
+      damping: 15,
+      stiffness: 200,
+    });
+  }
+
+  function handlePressOut() {
+    scale.value = withSpring(1, {
+      damping: 12,
+      stiffness: 180,
+    });
+  }
+
   return (
-    <Pressable style={styles.card} onPress={onPress}>
-      <Image
-        source={{ uri: meal.strMealThumb }}
-        style={styles.image}
-      />
+    <Animated.View style={animatedStyle}>
+      <Pressable
+        style={styles.card}
+        onPress={onPress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+      >
+        <Image
+          source={{ uri: meal.strMealThumb }}
+          style={styles.image}
+        />
 
-      <View style={styles.info}>
-        <Text style={styles.category}>
-          {meal.strCategory || 'Receita'}
-        </Text>
+        <View style={styles.info}>
+          <Text style={styles.category}>
+            {meal.strCategory || 'Receita'}
+          </Text>
 
-        <Text style={styles.name}>
-          {meal.strMeal}
-        </Text>
+          <Text style={styles.name}>
+            {meal.strMeal}
+          </Text>
 
-        <Text style={styles.link}>
-          Ver receita →
-        </Text>
-      </View>
-    </Pressable>
+          <Text style={styles.link}>
+            Ver receita →
+          </Text>
+        </View>
+      </Pressable>
+    </Animated.View>
   );
 }
 

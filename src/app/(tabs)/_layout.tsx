@@ -4,9 +4,11 @@ import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function TabsLayout() {
   const [user, setUser] = useState<any>(undefined);
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -31,9 +33,9 @@ export default function TabsLayout() {
         tabBarStyle: {
           backgroundColor: '#FFFFFF',
           borderTopColor: '#E8DCCF',
-          height: 65,
+          height: 65 + insets.bottom,
           paddingTop: 6,
-          paddingBottom: 6,
+          paddingBottom: Math.max(insets.bottom, 6),
         },
         tabBarLabelStyle: {
           fontSize: 12,

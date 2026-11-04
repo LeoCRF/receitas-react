@@ -10,6 +10,14 @@ export default function AccountScreen() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  function navigateToFavorites() {
+    router.navigate('/(tabs)/favorites');
+  }
+
+  function navigateToMyRecipes() {
+    router.navigate('/my-recipes');
+  }
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -40,9 +48,11 @@ export default function AccountScreen() {
             <Ionicons name="person" size={48} color="#B85C38" />
           </View>
 
-          <Text style={styles.title}>Minha conta</Text>
+          <Text style={styles.title}>
+            Olá, {user.displayName || 'usuário'}!
+          </Text>
           <Text style={styles.subtitle}>
-            Bem-vindo ao Receitas!
+            Bem-vindo ao seu espaço no Receitas!
           </Text>
         </View>
 
@@ -50,6 +60,32 @@ export default function AccountScreen() {
           <Text style={styles.label}>E-mail cadastrado</Text>
           <Text style={styles.email}>{user.email}</Text>
         </View>
+
+        <Pressable style={styles.menuButton} onPress={navigateToMyRecipes}>
+          <View style={styles.menuIcon}>
+            <Ionicons name="restaurant-outline" size={23} color="#B85C38" />
+          </View>
+
+          <View style={styles.menuText}>
+            <Text style={styles.menuTitle}>Minhas receitas</Text>
+            <Text style={styles.menuSubtitle}>Receitas que você criou</Text>
+          </View>
+
+          <Ionicons name="chevron-forward" size={20} color="#8B8179" />
+        </Pressable>
+
+        <Pressable style={styles.menuButton} onPress={navigateToFavorites}>
+          <View style={styles.menuIcon}>
+            <Ionicons name="heart-outline" size={23} color="#B85C38" />
+          </View>
+
+          <View style={styles.menuText}>
+            <Text style={styles.menuTitle}>Meus favoritos</Text>
+            <Text style={styles.menuSubtitle}>Receitas que você salvou</Text>
+          </View>
+
+          <Ionicons name="chevron-forward" size={20} color="#8B8179" />
+        </Pressable>
 
         <Pressable style={styles.logoutButton} onPress={handleLogout}>
           <Ionicons name="log-out-outline" size={22} color="#FFFFFF" />
@@ -236,5 +272,42 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+
+  menuButton: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#F0E5DA',
+    marginBottom: 14,
+  },
+
+  menuIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#F5E5DA',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+
+  menuText: {
+    flex: 1,
+    gap: 4,
+  },
+
+  menuTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#34251F',
+  },
+
+  menuSubtitle: {
+    fontSize: 13,
+    color: '#8B8179',
   },
 });

@@ -23,6 +23,11 @@ export async function getCustomRecipes(): Promise<any[]> {
     return saved ? JSON.parse(saved) : [];
 }
 
+export async function getMyRecipes(userId: string): Promise<any[]> {
+    const recipes = await getCustomRecipes();
+    return recipes.filter((recipe) => recipe.createdBy === userId);
+}
+
 export async function saveCustomRecipe(recipe: any): Promise<void> {
     const recipes = await getCustomRecipes();
     await AsyncStorage.setItem(

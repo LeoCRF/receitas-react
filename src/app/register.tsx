@@ -1,11 +1,12 @@
 
 import { useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { Link, router } from 'expo-router';
 import { auth } from '../lib/firebase';
 
 export default function RegisterScreen() {
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -16,9 +17,15 @@ export default function RegisterScreen() {
   async function handleRegister() {
     setMessage('');
 
-    if (!email.trim() || !password || !confirmPassword) {
+    if (!name.trim() || !email.trim() || !password || !confirmPassword) {
       setMessageType('error');
       setMessage('Preencha todos os campos para continuar');
+      return;
+    }
+
+    if (name.trim().length < 2) {
+      setMessageType('error');
+      setMessage('O nome precisa ter pelo menos 2 caracteres');
       return;
     }
 
@@ -37,11 +44,15 @@ export default function RegisterScreen() {
     try {
       setLoading(true);
 
-      await createUserWithEmailAndPassword(
+      const userCredential = await createUserWithEmailAndPassword(
         auth,
         email.trim(),
         password
       );
+
+      await updateProfile(userCredential.user, {
+        displayName: name.trim(),
+      });
 
       setMessageType('success');
       setMessage('Conta criada com sucesso! Redirecionando...');
@@ -88,6 +99,17 @@ export default function RegisterScreen() {
           <Text style={styles.description}>
             Preencha os dados para começar
           </Text>
+
+          <Text style={styles.label}>Nome</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Como podemos te chamar?"
+            placeholderTextColor="#A99B91"
+            value={name}
+            onChangeText={setName}
+            autoCapitalize="words"
+            autoCorrect={false}
+          />
 
           <Text style={styles.label}>E-mail</Text>
           <TextInput

@@ -1,4 +1,3 @@
-
 export type Meal = {
   idMeal: string;
   strMeal: string;
@@ -7,6 +6,7 @@ export type Meal = {
   strArea?: string;
   strInstructions?: string;
   [key: string]: any;
+  source?: 'local' | 'api' | 'user' | 'community';
 };
 
 const RECIPES: Meal[] = [
@@ -255,7 +255,10 @@ export async function getRecipes(): Promise<Meal[]> {
 
       const apiRecipes = Array.from(unique.values()).slice(0, 45);
 
-      recipesCache = [...RECIPES, ...apiRecipes];
+      recipesCache = [
+  ...RECIPES.map((meal) => ({ ...meal, source: 'local' as const })),
+  ...apiRecipes.map((meal) => ({ ...meal, source: 'api' as const })),
+];
 
       return recipesCache;
     } catch (error) {

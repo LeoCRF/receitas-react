@@ -1,7 +1,8 @@
 
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, Text, View, } from 'react-native';
+import { ActivityIndicator, FlatList, StyleSheet, Text, View, Pressable } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
 import RecipeCard from '../../components/RecipeCard';
 import { getRecipes, type Meal } from '../../lib/recipes';
@@ -80,9 +81,23 @@ export default function FavoritesScreen() {
             />
           )}
           ListEmptyComponent={
-            <Text style={styles.empty}>
-              Você não tem receitas favoritas
-            </Text>
+            <View style={styles.emptyContainer}>
+              <View style={styles.emptyIcon}>
+                <Ionicons name="heart-outline" size={42} color="#B85C38" />
+              </View>
+
+              <Text style={styles.emptyTitle}>
+                Nenhuma receita por aqui ainda!
+              </Text>
+
+              <Text style={styles.emptyDescription}>
+                Suas receitas favoritas aparecerão aqui. Explore nosso livro de receitas e salve as que mais gostar.
+              </Text>
+
+              <Pressable style={styles.exploreButton} onPress={() => router.replace('/(tabs)')}>
+                <Text style={styles.exploreButtonText}>Explorar receitas</Text>
+              </Pressable>
+            </View>
           }
           contentContainerStyle={styles.list}
         />
@@ -114,12 +129,53 @@ const styles = StyleSheet.create({
 
   list: {
     paddingBottom: 30,
+    flexGrow: 1,
   },
 
-  empty: {
-    color: '#776A60',
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 15,
+  },
+
+  emptyIcon: {
+    width: 85,
+    height: 85,
+    borderRadius: 42,
+    backgroundColor: '#F5E5DA',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+
+  emptyTitle: {
+    color: '#34251F',
+    fontSize: 18,
+    fontWeight: '800',
     textAlign: 'center',
-    marginTop: 35,
+  },
+
+  emptyDescription: {
+    color: '#776A60',
+    fontSize: 14,
+    textAlign: 'center',
     lineHeight: 22,
+    marginTop: 10,
+    maxWidth: 280,
+  },
+
+  exploreButton: {
+    backgroundColor: '#B85C38',
+    paddingVertical: 13,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    marginTop: 22,
+  },
+
+  exploreButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
   },
 });

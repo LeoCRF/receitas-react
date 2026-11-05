@@ -1,21 +1,31 @@
 
-import { useState } from 'react';
-import { Alert, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, Pressable, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, Animated, Easing, Image, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, Pressable, View } from 'react-native';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { auth } from '../../lib/firebase';
 
-import { saveCustomRecipe } from '../../lib/storage';
+import { getCustomRecipes, saveCustomRecipe, updateCustomRecipe } from '../../lib/storage';
 
 export default function NewRecipeScreen() {
   const router = useRouter();
+  const { editId, editSession } = useLocalSearchParams<{
+    editId?: string;
+    editSession?: string;
+  }>();
+  const editIdRef = useRef(editId);
+  editIdRef.current = editId;
 
+  const [headerHeight, setHeaderHeight] = useState(0);
   const [name, setName] = useState('');
   const [category, setCategory] = useState('');
   const [image, setImage] = useState('');
   const [ingredients, setIngredients] = useState('');
   const [instruction, setInstruction] = useState('');
+  const [editingRecipeId, setEditingRecipeId] = useState<string | null>(null);
+  const [loadingRecipe, setLoadingRecipe] = useState(Boolean(editId));
+  const [saving, setSaving] = useState(false);
   const [categories] = useState([
     'Café da manhã',
     'Almoço',
@@ -24,6 +34,130 @@ export default function NewRecipeScreen() {
     'Lanche',
     'Bebida',
   ]);
+  const headerProgress = useRef(new Animated.Value(1)).current;
+  const headerCollapsed = useRef(false);
+  const headerHeightMeasured = useRef(false);
+  const keyboardVisible = useRef(false);
+
+  useFocusEffect(
+    useCallback(
+      () => () => {
+        if (!editIdRef.current) {
+          return;
+        }
+
+        editIdRef.current = undefined;
+        setName('');
+        setCategory('');
+        setImage('');
+        setIngredients('');
+        setInstruction('');
+        setEditingRecipeId(null);
+        setLoadingRecipe(false);
+        router.setParams({ editId: undefined, editSession: undefined });
+      },
+      [router]
+    )
+  );
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadRecipeForEditing() {
+      if (!editId) {
+        setLoadingRecipe(false);
+        return;
+      }
+
+      setLoadingRecipe(true);
+      const userId = auth.currentUser?.uid;
+
+      try {
+        if (!editId.startsWith('local_') || !userId) {
+          throw new Error('Você não tem permissão para editar esta receita.');
+        }
+
+        const recipes = await getCustomRecipes();
+        const recipe = recipes.find((item) => item.idMeal === editId);
+
+        if (!recipe || recipe.createdBy !== userId) {
+          throw new Error('Você só pode editar receitas criadas por você.');
+        }
+
+        const recipeIngredients = Object.keys(recipe)
+          .filter((key) => /^strIngredient\d+$/.test(key))
+          .sort((a, b) => Number(a.replace('strIngredient', '')) - Number(b.replace('strIngredient', '')))
+          .map((key) => recipe[key])
+          .filter((ingredient) => typeof ingredient === 'string' && ingredient.trim());
+
+        if (active) {
+          setName(recipe.strMeal ?? '');
+          setCategory(recipe.strCategory ?? '');
+          setImage(recipe.strMealThumb ?? '');
+          setIngredients(recipeIngredients.join('\n'));
+          setInstruction(recipe.strInstructions ?? '');
+          setEditingRecipeId(editId);
+        }
+      } catch {
+        if (active) {
+          Alert.alert(
+            'Não foi possível editar',
+            'Esta receita não existe ou você não tem permissão para editá-la.',
+            [{ text: 'OK', onPress: () => router.replace('/(tabs)') }]
+          );
+        }
+      } finally {
+        if (active) {
+          setLoadingRecipe(false);
+        }
+      }
+    }
+
+    loadRecipeForEditing();
+
+    return () => {
+      active = false;
+    };
+  }, [editId, editSession, router]);
+
+  function animateHeader(collapsed: boolean, duration = 240) {
+    if (headerCollapsed.current === collapsed) {
+      return;
+    }
+
+    headerCollapsed.current = collapsed;
+    headerProgress.stopAnimation();
+    Animated.timing(headerProgress, {
+      toValue: collapsed ? 0 : 1,
+      duration: duration > 0 ? duration : 240,
+      easing: Easing.inOut(Easing.ease),
+      useNativeDriver: false,
+    }).start();
+  }
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showSubscription = Keyboard.addListener(showEvent, (event) => {
+      keyboardVisible.current = true;
+      animateHeader(true, event.duration);
+    });
+    const hideSubscription = Keyboard.addListener(hideEvent, (event) => {
+      keyboardVisible.current = false;
+      animateHeader(false, event.duration);
+    });
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
+
+  function handleInputFocus() {
+    if (Platform.OS === 'android' && !keyboardVisible.current) {
+      animateHeader(true);
+    }
+  }
 
   async function pickImage() {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -39,6 +173,10 @@ export default function NewRecipeScreen() {
   }
 
   async function handleSave() {
+    if (saving) {
+      return;
+    }
+
     if (!name.trim() || !ingredients.trim() || !instruction.trim()) {
       Alert.alert(
         'Campos obrigatórios',
@@ -52,9 +190,14 @@ export default function NewRecipeScreen() {
       .map((item) => item.trim())
       .filter(Boolean);
 
+    const userId = auth.currentUser?.uid;
+
+    if (!userId) {
+      Alert.alert('Entre na sua conta', 'Faça login para salvar sua receita.');
+      return;
+    }
+
     const recipe = {
-      idMeal: `local_${Date.now()}`,
-      createdBy: auth.currentUser?.uid,
       strMeal: name.trim(),
       strCategory: category.trim() || 'Minha receita',
       strMealThumb:
@@ -70,41 +213,104 @@ export default function NewRecipeScreen() {
     };
 
     try {
-      await saveCustomRecipe(recipe);
+      setSaving(true);
+      if (editingRecipeId) {
+        await updateCustomRecipe(editingRecipeId, userId, recipe);
+      } else {
+        await saveCustomRecipe({
+          ...recipe,
+          idMeal: `local_${Date.now()}`,
+          createdBy: userId,
+        });
+      }
 
-      Alert.alert('Receita salva', 'Sua receita foi adicionada!', [
-        {
-          text: 'OK',
-          onPress: () => router.replace('/(tabs)'),
-        },
-      ]);
+      Alert.alert(
+        editingRecipeId ? 'Receita atualizada' : 'Receita salva',
+        editingRecipeId ? 'As alterações foram salvas!' : 'Sua receita foi adicionada!',
+        [
+          {
+            text: 'OK',
+            onPress: () => router.replace('/(tabs)'),
+          },
+        ]
+      );
     } catch {
-      Alert.alert('Erro', 'Não foi possível salvar a receita.');
+      Alert.alert(
+        'Erro',
+        editingRecipeId
+          ? 'Não foi possível atualizar a receita. Verifique se ela ainda pertence à sua conta e tente novamente.'
+          : 'Não foi possível salvar a receita.'
+      );
+    } finally {
+      setSaving(false);
     }
+  }
+
+  if (loadingRecipe) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <ActivityIndicator size="large" color="#B85C38" />
+        <Text style={styles.loadingText}>Carregando sua receita...</Text>
+      </View>
+    );
   }
 
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView
-        style={styles.container}
+        style={styles.scrollView}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
       >
         <View style={styles.header}>
           <Pressable style={styles.backButton} onPress={() => router.back()}>
             <Ionicons name="arrow-back" size={22} color="#34251F" />
           </Pressable>
 
-          <Text style={styles.eyebrow}>SUA COZINHA</Text>
+          <Animated.View
+            onLayout={(event) => {
+              if (!headerHeightMeasured.current) {
+                headerHeightMeasured.current = true;
+                setHeaderHeight(event.nativeEvent.layout.height);
+              }
+            }}
+            style={[
+              styles.headerContent,
+              {
+                height: headerHeight > 0
+                  ? headerProgress.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, headerHeight],
+                    })
+                  : undefined,
+                opacity: headerProgress,
+                transform: [
+                  {
+                    translateY: headerProgress.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [-8, 0],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <Text style={styles.eyebrow}>SUA COZINHA</Text>
 
-          <Text style={styles.title}>Nova receita</Text>
+            <Text style={styles.title}>
+              {editingRecipeId ? 'Editar receita' : 'Nova receita'}
+            </Text>
 
-          <Text style={styles.subtitle}>
-            Compartilhe um pouco do seu talento na cozinha
-          </Text>
+            <Text style={styles.subtitle}>
+              {editingRecipeId
+                ? 'Atualize os detalhes da sua receita'
+                : 'Compartilhe um pouco do seu talento na cozinha'}
+            </Text>
+          </Animated.View>
         </View>
 
         <View style={styles.sectionHeader}>
@@ -124,6 +330,7 @@ export default function NewRecipeScreen() {
           onChangeText={setName}
           placeholder="Ex.: Bolo de cenoura"
           placeholderTextColor="#8B8179"
+          onFocus={handleInputFocus}
         />
 
         <Text style={styles.label}>Categoria</Text>
@@ -184,6 +391,7 @@ export default function NewRecipeScreen() {
           placeholder={'2 ovos\n1 xícara de açúcar\n2 xícaras de farinha'}
           placeholderTextColor="#8B8179"
           multiline
+          onFocus={handleInputFocus}
         />
 
         <Text style={styles.label}>Modo de preparo *</Text>
@@ -194,11 +402,26 @@ export default function NewRecipeScreen() {
           placeholder="Escreva o passo a passo..."
           placeholderTextColor="#8B8179"
           multiline
+          onFocus={handleInputFocus}
         />
 
-        <Pressable style={styles.button} onPress={handleSave}>
-          <Ionicons name="checkmark-circle-outline" size={22} color="#FFFFFF" />
-          <Text style={styles.buttonText}>Salvar minha receita</Text>
+        <Pressable
+          style={styles.button}
+          onPress={handleSave}
+          disabled={saving}
+        >
+          {saving ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Ionicons name="checkmark-circle-outline" size={22} color="#FFFFFF" />
+          )}
+          <Text style={styles.buttonText}>
+            {saving
+              ? 'Salvando...'
+              : editingRecipeId
+                ? 'Salvar alterações'
+                : 'Salvar minha receita'}
+          </Text>
         </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -210,6 +433,18 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFF9F2',
   },
+  scrollView: {
+    flex: 1,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    color: '#776A60',
+    marginTop: 12,
+    fontSize: 14,
+  },
   content: {
     padding: 22,
     paddingTop: 58,
@@ -218,6 +453,9 @@ const styles = StyleSheet.create({
 
   header: {
     marginBottom: 12,
+  },
+  headerContent: {
+    overflow: 'hidden',
   },
 
   backButton: {

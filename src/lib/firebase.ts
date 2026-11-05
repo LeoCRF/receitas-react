@@ -1,4 +1,3 @@
-
 import { initializeApp } from 'firebase/app';
 import { getAuth, initializeAuth } from 'firebase/auth';
 // @ts-expect-error Exportação disponível na versão React Native do Firebase

@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   BackHandler,
   Image,
   ScrollView,
@@ -28,6 +29,7 @@ import {
   getFavorites,
   toggleFavorite,
   getCustomRecipes,
+  deleteCustomRecipe,
 } from '../../../lib/storage';
 
 import { auth } from '../../../lib/firebase';
@@ -41,6 +43,7 @@ export default function RecipeDetailsScreen() {
   const [error, setError] = useState('');
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [checkedIngredients, setCheckedIngredients] = useState<number[]>([]);
+  const [deleting, setDeleting] = useState(false);
 
   const goToHome = useCallback(() => {
     router.replace('/');
@@ -134,6 +137,65 @@ export default function RecipeDetailsScreen() {
     }
   }
 
+  function handleDeleteRecipe() {
+    const userId = auth.currentUser?.uid;
+
+    if (!id || !id.startsWith('local_') || !userId || meal?.createdBy !== userId) {
+      Alert.alert(
+        'Ação não permitida',
+        'Você só pode excluir receitas criadas por você.'
+      );
+      return;
+    }
+
+    Alert.alert(
+      'Excluir receita',
+      'Tem certeza de que deseja excluir esta receita? Esta ação não pode ser desfeita.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Excluir',
+          style: 'destructive',
+          onPress: async () => {
+            setDeleting(true);
+
+            try {
+              await deleteCustomRecipe(id, userId);
+              router.replace('/(tabs)');
+            } catch {
+              Alert.alert(
+                'Erro',
+                'Não foi possível excluir a receita. Verifique se ela ainda pertence à sua conta e tente novamente.'
+              );
+            } finally {
+              setDeleting(false);
+            }
+          },
+        },
+      ]
+    );
+  }
+
+  function handleEditRecipe() {
+    const userId = auth.currentUser?.uid;
+
+    if (!id || !id.startsWith('local_') || !userId || meal?.createdBy !== userId) {
+      Alert.alert(
+        'Ação não permitida',
+        'Você só pode editar receitas criadas por você.'
+      );
+      return;
+    }
+
+    router.push({
+      pathname: '/(tabs)/new_recipe',
+      params: {
+        editId: id,
+        editSession: Date.now().toString(),
+      },
+    });
+  }
+
   function toggleIngredient(index: number) {
     setCheckedIngredients((current) =>
       current.includes(index)
@@ -170,6 +232,10 @@ export default function RecipeDetailsScreen() {
     step.replace(/^\s*\d+\s*[.)-]\s*/, '').trim()
   )
   .filter(Boolean);
+  const isOwner =
+    Boolean(id?.startsWith('local_')) &&
+    Boolean(auth.currentUser?.uid) &&
+    meal.createdBy === auth.currentUser?.uid;
 
   return (
     <>
@@ -231,6 +297,44 @@ export default function RecipeDetailsScreen() {
                 : 'Adicionar aos favoritos'}
             </Text>
           </Pressable>
+
+          {isOwner ? (
+            <>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.editButton,
+                  pressed && styles.editButtonPressed,
+                ]}
+                onPress={handleEditRecipe}
+                accessibilityRole="button"
+                accessibilityLabel="Editar minha receita"
+              >
+                <Ionicons name="create-outline" size={19} color="#8D432B" />
+                <Text style={styles.editButtonText}>Editar minha receita</Text>
+              </Pressable>
+
+              <Pressable
+                style={({ pressed }) => [
+                  styles.deleteButton,
+                  pressed && styles.deleteButtonPressed,
+                  deleting && styles.deleteButtonDisabled,
+                ]}
+                onPress={handleDeleteRecipe}
+                disabled={deleting}
+                accessibilityRole="button"
+                accessibilityLabel="Excluir minha receita"
+              >
+                {deleting ? (
+                  <ActivityIndicator size="small" color="#A33131" />
+                ) : (
+                  <Ionicons name="trash-outline" size={19} color="#A33131" />
+                )}
+                <Text style={styles.deleteButtonText}>
+                  {deleting ? 'Excluindo...' : 'Excluir minha receita'}
+                </Text>
+              </Pressable>
+            </>
+          ) : null}
 
           <View style={styles.sectionHeader}>
             <Text style={styles.heading}>Ingredientes</Text>
@@ -465,6 +569,49 @@ const styles = StyleSheet.create({
   },
   favoriteText: {
     color: '#8D432B',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  editButton: {
+    flexDirection: 'row',
+    backgroundColor: '#F2E1D4',
+    borderRadius: 12,
+    padding: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -16,
+    marginBottom: 16,
+    gap: 9,
+  },
+  editButtonPressed: {
+    opacity: 0.75,
+  },
+  editButtonText: {
+    color: '#8D432B',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  deleteButton: {
+    flexDirection: 'row',
+    backgroundColor: '#FFF1EF',
+    borderWidth: 1,
+    borderColor: '#F0D0CC',
+    borderRadius: 12,
+    padding: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 0,
+    marginBottom: 28,
+    gap: 9,
+  },
+  deleteButtonPressed: {
+    opacity: 0.75,
+  },
+  deleteButtonDisabled: {
+    opacity: 0.6,
+  },
+  deleteButtonText: {
+    color: '#A33131',
     fontWeight: '700',
     fontSize: 14,
   },

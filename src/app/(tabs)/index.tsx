@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, FlatList, Keyboard, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, View, Pressable } from 'react-native';
+import { ActivityIndicator, Animated, Easing, FlatList, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useScrollToTop } from 'expo-router';
 
 import RecipeCard from '../../components/RecipeCard';
 import { getRecipes, type Meal } from '../../lib/recipes';
@@ -19,6 +19,7 @@ export default function HomeScreen() {
   const [recipes, setRecipes] = useState<Meal[]>([]);
   const [search, setSearch] = useState('');
   const [selectedSource, setSelectedSource] = useState('Todas');
+  const [selectedCategory, setSelectedCategory] = useState('Todas');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [visibleCount, setVisibleCount] = useState(10);
@@ -27,6 +28,46 @@ export default function HomeScreen() {
   const lastScrollOffset = useRef(0);
   const filterRevealProgress = useRef(new Animated.Value(0)).current;
   const filterRevealProgressValue = useRef(0);
+  const headingProgress = useRef(new Animated.Value(1)).current;
+  const headingCollapsed = useRef(false);
+  const headingHeightMeasured = useRef(false);
+  const keyboardVisible = useRef(false);
+  const [headingHeight, setHeadingHeight] = useState(0);
+
+  useScrollToTop(listRef);
+
+  function animateHeading(collapsed: boolean, duration = 240) {
+    if (headingCollapsed.current === collapsed) {
+      return;
+    }
+
+    headingCollapsed.current = collapsed;
+    headingProgress.stopAnimation();
+    Animated.timing(headingProgress, {
+      toValue: collapsed ? 0 : 1,
+      duration: duration > 0 ? duration : 240,
+      easing: Easing.inOut(Easing.ease),
+      useNativeDriver: false,
+    }).start();
+  }
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showSubscription = Keyboard.addListener(showEvent, (event) => {
+      keyboardVisible.current = true;
+      animateHeading(true, event.duration);
+    });
+    const hideSubscription = Keyboard.addListener(hideEvent, (event) => {
+      keyboardVisible.current = false;
+      animateHeading(false, event.duration);
+    });
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -77,7 +118,10 @@ export default function HomeScreen() {
       (selectedSource === 'API' && recipe.source === 'api') ||
       (selectedSource === 'Minhas receitas' && recipe.source === 'user');
 
-    return matchesSearch && matchesSource;
+    const matchesCategory =
+      selectedCategory === 'Todas' || recipe.strCategory === selectedCategory;
+
+    return matchesSearch && matchesSource && matchesCategory;
   });
 
   const visibleRecipes = filteredRecipes.slice(0, visibleCount);
@@ -96,6 +140,12 @@ export default function HomeScreen() {
     filterRevealProgressValue.current = 0;
     filterRevealProgress.setValue(0);
     setFloatingFiltersInteractive(false);
+    listRef.current?.scrollToOffset({ offset: 0, animated: true });
+  }
+
+  function selectCategory(category: string) {
+    setSelectedCategory(category);
+    setVisibleCount(10);
     listRef.current?.scrollToOffset({ offset: 0, animated: true });
   }
 
@@ -125,15 +175,88 @@ export default function HomeScreen() {
     );
   }
 
+  function renderCategoryFilters() {
+    const categories = [
+      'Todas',
+      'Sobremesa',
+      'Almoço',
+      'Jantar',
+      'Café da manhã',
+      'Lanche',
+      'Bebida',
+      'Frutos do mar',
+      'Vegetariano',
+      'Frango',
+      'Massas',
+      'Carne bovina',
+    ];
+
+    return (
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryFilters}>
+        {categories.map((category) => (
+          <Pressable
+            key={category}
+            style={[
+              styles.categoryButton,
+              selectedCategory === category && styles.categoryButtonActive,
+            ]}
+            onPress={() => selectCategory(category)}
+          >
+            <Text
+              style={[
+                styles.categoryButtonText,
+                selectedCategory === category && styles.categoryButtonTextActive,
+              ]}
+            >
+              {category}
+            </Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+    );
+  }
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.eyebrow}>SUA COZINHA</Text>
-      <Text style={styles.title}>Receitas</Text>
-      <Text style={styles.subtitle}>
-        Encontre uma receita para preparar
-      </Text>
-
-
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <Animated.View
+        onLayout={(event) => {
+          if (!headingHeightMeasured.current) {
+            headingHeightMeasured.current = true;
+            setHeadingHeight(event.nativeEvent.layout.height);
+          }
+        }}
+        style={[
+          styles.headingContainer,
+          {
+            height: headingHeight > 0
+              ? headingProgress.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, headingHeight],
+              })
+              : undefined,
+            opacity: headingProgress,
+            transform: [
+              {
+                translateY: headingProgress.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [-8, 0],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
+        <View style={styles.headingContent}>
+          <Text style={styles.eyebrow}>SUA COZINHA</Text>
+          <Text style={styles.title}>Receitas</Text>
+          <Text style={styles.subtitle}>
+            Encontre algo delicioso para preparar hoje
+          </Text>
+        </View>
+      </Animated.View>
 
       {loading ? (
         <ActivityIndicator
@@ -150,21 +273,48 @@ export default function HomeScreen() {
             data={visibleRecipes}
             ListHeaderComponent={
               <View>
-                <Text style={styles.eyebrow}>SUA COZINHA</Text>
-
-                <TextInput
-                  style={styles.search}
-                  placeholder="Buscar uma receita..."
-                  placeholderTextColor="#8B8179"
-                  returnKeyType="search"
-                  value={search}
-                  onChangeText={(value) => {
-                    setSearch(value);
-                    setVisibleCount(10);
-                  }}
-                />
+                <View style={styles.searchContainer}>
+                  <Ionicons
+                    name="search-outline"
+                    size={20}
+                    color="#8B8179"
+                    style={styles.searchIcon}
+                  />
+                  <TextInput
+                    style={styles.search}
+                    placeholder="Buscar uma receita..."
+                    placeholderTextColor="#8B8179"
+                    returnKeyType="search"
+                    value={search}
+                    onFocus={() => {
+                      if (Platform.OS === 'android' && !keyboardVisible.current) {
+                        animateHeading(true);
+                      }
+                    }}
+                    onBlur={() => {
+                      if (!keyboardVisible.current) {
+                        animateHeading(false);
+                      }
+                    }}
+                    onChangeText={(value) => {
+                      setSearch(value);
+                      setVisibleCount(10);
+                    }}
+                  />
+                </View>
 
                 {renderFilters()}
+
+                {renderCategoryFilters()}
+
+                <View style={styles.resultsHeader}>
+                  <Text style={styles.resultsTitle}>Receitas para explorar</Text>
+                  <Text style={styles.resultsCount}>
+                    {filteredRecipes.length === 1
+                      ? '1 receita'
+                      : `${filteredRecipes.length} receitas`}
+                  </Text>
+                </View>
               </View>
             }
             keyExtractor={(item) => item.idMeal}
@@ -233,8 +383,6 @@ export default function HomeScreen() {
               </View>
             }
             showsVerticalScrollIndicator={false}
-            automaticallyAdjustKeyboardInsets={true}
-
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
           />
@@ -259,7 +407,7 @@ export default function HomeScreen() {
           </Animated.View>
         </View>
       )}
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -267,8 +415,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFF9F2',
-    paddingTop: 58,
+    paddingTop: 12,
     paddingHorizontal: 20,
+  },
+
+  headingContainer: {
+    overflow: 'hidden',
+  },
+
+  headingContent: {
+    paddingTop: 38,
   },
 
   eyebrow: {
@@ -280,16 +436,16 @@ const styles = StyleSheet.create({
 
   title: {
     color: '#34251F',
-    fontSize: 34,
+    fontSize: 32,
     fontWeight: '800',
-    marginTop: 5,
+    marginTop: 3,
   },
 
   subtitle: {
     color: '#776A60',
-    fontSize: 15,
-    marginTop: 5,
-    marginBottom: 20,
+    fontSize: 14,
+    marginTop: 4,
+    marginBottom: 16,
   },
 
   listContainer: {
@@ -321,16 +477,53 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
 
-  search: {
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E8DCCF',
-    borderRadius: 12,
-    paddingHorizontal: 15,
-    paddingVertical: 13,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    minHeight: 52,
+    marginTop: 2,
+    marginBottom: 10,
+    shadowColor: '#34251F',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+
+  searchIcon: {
+    marginRight: 10,
+  },
+
+  search: {
+    flex: 1,
+    paddingVertical: 12,
     color: '#34251F',
-    marginBottom: 20,
     fontSize: 15,
+  },
+
+  resultsHeader: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    marginTop: 8,
+    marginBottom: 12,
+  },
+
+  resultsTitle: {
+    color: '#34251F',
+    fontSize: 17,
+    fontWeight: '800',
+  },
+
+  resultsCount: {
+    color: '#8B8179',
+    fontSize: 12,
+    fontWeight: '600',
   },
 
   list: {
@@ -398,13 +591,13 @@ const styles = StyleSheet.create({
   filters: {
     flexDirection: 'row',
     gap: 8,
-    marginTop: 16,
-    marginBottom: 8,
+    marginTop: 2,
+    marginBottom: 4,
   },
 
   filterButton: {
-    paddingVertical: 9,
-    paddingHorizontal: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 13,
     borderRadius: 20,
     backgroundColor: '#F1E8DF',
   },
@@ -417,6 +610,33 @@ const styles = StyleSheet.create({
     color: '#6F6259',
     fontSize: 13,
     fontWeight: '600',
+  },
+
+  categoryFilters: {
+    marginTop: 6,
+    marginBottom: 2,
+  },
+
+  categoryButton: {
+    paddingHorizontal: 13,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#F1EAE4',
+    marginRight: 8,
+  },
+
+  categoryButtonActive: {
+    backgroundColor: '#B85C38',
+  },
+
+  categoryButtonText: {
+    color: '#6B5B50',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+
+  categoryButtonTextActive: {
+    color: '#FFFFFF',
   },
 
   filterButtonTextActive: {

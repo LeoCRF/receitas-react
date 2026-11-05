@@ -1,5 +1,6 @@
 
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -48,17 +49,18 @@ export default function RecipeCard({ meal, onPress }: Props) {
         />
 
         <View style={styles.info}>
-          <Text style={styles.category}>
+          <Text style={styles.category} numberOfLines={1}>
             {meal.strCategory || 'Receita'}
           </Text>
 
-          <Text style={styles.name}>
+          <Text style={styles.name} numberOfLines={2}>
             {meal.strMeal}
           </Text>
 
-          <Text style={styles.link}>
-            Ver receita →
-          </Text>
+          <View style={styles.linkContainer}>
+            <Text style={styles.link}>Ver receita</Text>
+            <Ionicons name="arrow-forward" size={14} color="#B85C38" />
+          </View>
         </View>
       </Pressable>
     </Animated.View>
@@ -67,41 +69,60 @@ export default function RecipeCard({ meal, onPress }: Props) {
 
 const styles = StyleSheet.create({
   card: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    marginBottom: 16,
+    borderRadius: 18,
+    marginBottom: 12,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: '#F0E5DA',
+    shadowColor: '#34251F',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
 
   image: {
-    width: '100%',
-    height: 180,
+    width: 112,
+    height: 142,
     backgroundColor: '#EFE7DE',
   },
 
   info: {
-    padding: 14,
-    gap: 6,
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 5,
   },
 
   category: {
     color: '#B85C38',
-    fontSize: 12,
+    fontSize: 10,
     textTransform: 'uppercase',
     fontWeight: '700',
+    letterSpacing: 0.8,
   },
 
   name: {
     color: '#34251F',
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 16,
+    lineHeight: 21,
+    fontWeight: '800',
   },
 
   link: {
     color: '#B85C38',
-    fontSize: 14,
-    marginTop: 4,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+
+  linkContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 5,
   },
 });

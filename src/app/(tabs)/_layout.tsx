@@ -6,6 +6,9 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+const visibleTabItemStyle = { flex: 1 };
+const hiddenTabItemStyle = { display: 'none' as const };
+
 export default function TabsLayout() {
   const [user, setUser] = useState<any>(undefined);
   const insets = useSafeAreaInsets();
@@ -48,7 +51,7 @@ export default function TabsLayout() {
         options={{
           title: 'Início',
           tabBarLabel: 'Início',
-          tabBarItemStyle: { flex: 1 },
+          tabBarItemStyle: visibleTabItemStyle,
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons
               name={focused ? 'home' : 'home-outline'}
@@ -64,7 +67,10 @@ export default function TabsLayout() {
         options={{
           title: 'Favoritos',
           tabBarLabel: 'Favoritos',
-          tabBarButton: isLoggedIn ? undefined : () => null,
+          href: isLoggedIn ? undefined : null,
+          tabBarItemStyle: isLoggedIn
+            ? visibleTabItemStyle
+            : hiddenTabItemStyle,
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons
               name={focused ? 'heart' : 'heart-outline'}
@@ -80,7 +86,10 @@ export default function TabsLayout() {
         options={{
           title: 'Nova receita',
           tabBarLabel: 'Adicionar',
-          tabBarButton: isLoggedIn ? undefined : () => null,
+          href: isLoggedIn ? undefined : null,
+          tabBarItemStyle: isLoggedIn
+            ? visibleTabItemStyle
+            : hiddenTabItemStyle,
           tabBarIcon: ({ color, size }) => (
             <Ionicons
               name="add-circle-outline"
@@ -96,7 +105,7 @@ export default function TabsLayout() {
         options={{
           title: isLoggedIn ? 'Perfil' : 'Entrar',
           tabBarLabel: isLoggedIn ? 'Perfil' : 'Entrar',
-          tabBarItemStyle: { flex: 1 },
+          tabBarItemStyle: visibleTabItemStyle,
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons
               name={focused ? 'person' : 'person-outline'}
@@ -111,6 +120,7 @@ export default function TabsLayout() {
         name="recipe"
         options={{
           tabBarButton: () => null,
+          tabBarItemStyle: hiddenTabItemStyle,
         }}
       />
 
@@ -118,6 +128,7 @@ export default function TabsLayout() {
         name="explore"
         options={{
           href: null,
+          tabBarItemStyle: hiddenTabItemStyle,
         }}
       />
     </Tabs>

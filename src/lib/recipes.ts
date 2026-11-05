@@ -212,6 +212,15 @@ const CATEGORIES = [
   'Dessert',
 ];
 
+const CATEGORY_TRANSLATIONS: Record<string, string> = {
+  Seafood: 'Frutos do mar',
+  Vegetarian: 'Vegetariano',
+  Chicken: 'Frango',
+  Pasta: 'Massas',
+  Beef: 'Carne bovina',
+  Dessert: 'Sobremesa',
+};
+
 let recipesCache: Meal[] | null = null;
 let recipesPromise: Promise<Meal[]> | null = null;
 
@@ -240,7 +249,7 @@ export async function getRecipes(): Promise<Meal[]> {
 
           return (data.meals ?? []).map((meal: Meal) => ({
             ...meal,
-            strCategory: category,
+            strCategory: CATEGORY_TRANSLATIONS[category] ?? category,
           }));
         })
       );

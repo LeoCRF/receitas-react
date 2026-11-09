@@ -4,6 +4,7 @@ import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, Vi
 import { Ionicons } from '@expo/vector-icons';
 import { auth } from '../lib/firebase';
 import { getMyRecipes } from '../lib/storage';
+import { getPublicRecipes } from '../lib/community';
 import RecipeCard from '../components/RecipeCard';
 import type { Meal } from '../lib/recipes';
 
@@ -12,6 +13,7 @@ export default function MyRecipesScreen() {
 
     const [recipes, setRecipes] = useState<Meal[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState('');
     const [search, setSearch] = useState('');
 
     const filteredRecipes = recipes.filter((recipe) =>
@@ -22,6 +24,7 @@ export default function MyRecipesScreen() {
         useCallback(() => {
             async function loadRecipes() {
                 setLoading(true);
+                setLoadError('');
 
                 try {
                     const userId = auth.currentUser?.uid;
@@ -31,10 +34,22 @@ export default function MyRecipesScreen() {
                         return;
                     }
 
-                    const myRecipes = await getMyRecipes(userId);
-                    setRecipes(myRecipes);
+                    const [myRecipes, publicRecipes] = await Promise.all([
+                        getMyRecipes(userId),
+                        getPublicRecipes(),
+                    ]);
+                    setRecipes([
+                        ...myRecipes,
+                        ...publicRecipes
+                            .filter((recipe) => recipe.createdBy === userId)
+                            .map((recipe) => ({
+                                ...recipe,
+                                source: 'community' as const,
+                            })),
+                    ]);
                 } catch {
                     setRecipes([]);
+                    setLoadError('Não foi possível carregar suas receitas. Tente novamente mais tarde.');
                 } finally {
                     setLoading(false);
                 }
@@ -75,6 +90,8 @@ export default function MyRecipesScreen() {
 
             {loading ? (
                 <ActivityIndicator size="large" color="#B85C38" style={styles.loader} />
+            ) : loadError ? (
+                <Text style={styles.loadError}>{loadError}</Text>
             ) : (
                 <FlatList
                     data={filteredRecipes}
@@ -85,7 +102,10 @@ export default function MyRecipesScreen() {
                             onPress={() => {
                                 router.push({
                                     pathname: '/recipe/[id]',
-                                    params: { id: item.idMeal },
+                                    params: {
+                                        id: item.idMeal,
+                                        source: item.source,
+                                    },
                                 });
                             }}
                         />
@@ -111,7 +131,7 @@ export default function MyRecipesScreen() {
                             <Text style={styles.emptyDescription}>
                                 {search.trim()
                                     ? 'Não encontramos receitas com esse nome. Tente buscar por outro termo.'
-                                    : 'Suas receitas personalizadas aparecerão aqui quando você cadastrar uma.'}
+                                    : 'Suas receitas pessoais e publicadas na comunidade aparecerão aqui.'}
                             </Text>
 
                             {!search.trim() && (
@@ -162,6 +182,12 @@ const styles = StyleSheet.create({
     },
 
     loader: {
+        marginTop: 40,
+    },
+
+    loadError: {
+        color: '#B00020',
+        textAlign: 'center',
         marginTop: 40,
     },
 

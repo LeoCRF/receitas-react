@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Easing, FlatList, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter, useScrollToTop } from 'expo-router';
+import { useFocusEffect, useRouter, useScrollToTop } from 'expo-router';
 
 import RecipeCard from '../../components/RecipeCard';
 import { getRecipes, type Meal } from '../../lib/recipes';
 import { getMyRecipes } from '../../lib/storage';
+import { getPublicRecipes } from '../../lib/community';
 
 import { auth } from '../../lib/firebase';
 
@@ -69,8 +70,9 @@ export default function HomeScreen() {
     };
   }, []);
 
-  useEffect(() => {
-    let active = true;
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
 
     async function loadRecipes() {
       setLoading(true);
@@ -81,9 +83,11 @@ export default function HomeScreen() {
         const myRecipes = auth.currentUser
           ? await getMyRecipes(auth.currentUser.uid)
           : [];
+        const communityRecipes = await getPublicRecipes();
 
         const combinedRecipes = [
           ...myRecipes.map((recipe) => ({ ...recipe, source: 'user' as const })),
+          ...communityRecipes.map((recipe) => ({ ...recipe, source: 'community' as const })),
           ...allRecipes,
         ];
 
@@ -108,15 +112,22 @@ export default function HomeScreen() {
     return () => {
       active = false;
     };
-  }, []);
+    }, [])
+  );
 
   const filteredRecipes = recipes.filter((recipe) => {
-    const matchesSearch = recipe.strMeal.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch = recipe.strMeal
+      .toLowerCase()
+      .includes(search.trim().toLowerCase());
 
     const matchesSource =
       selectedSource === 'Todas' ||
       (selectedSource === 'API' && recipe.source === 'api') ||
-      (selectedSource === 'Minhas receitas' && recipe.source === 'user');
+      (selectedSource === 'Minhas receitas' &&
+        (recipe.source === 'user' ||
+          (recipe.source === 'community' &&
+            recipe.createdBy === auth.currentUser?.uid))) ||
+      (selectedSource === 'Comunidade' && recipe.source === 'community');
 
     const matchesCategory =
       selectedCategory === 'Todas' || recipe.strCategory === selectedCategory;
@@ -152,7 +163,7 @@ export default function HomeScreen() {
   function renderFilters(floating = false) {
     return (
       <View style={[styles.filters, floating && styles.floatingFilterRow]}>
-        {['Todas', 'API', 'Minhas receitas'].map((source) => (
+        {['Todas', 'API', 'Minhas receitas', 'Comunidade'].map((source) => (
           <Pressable
             key={source}
             style={[
@@ -324,7 +335,7 @@ export default function HomeScreen() {
                 onPress={() => {
                   router.push({
                     pathname: '/recipe/[id]',
-                    params: { id: item.idMeal },
+                    params: { id: item.idMeal, source: item.source },
                   });
                 }}
               />

@@ -1,56 +1,94 @@
-# Welcome to your Expo app 👋
+# Receitas
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Aplicativo de receitas feito com React Native, Expo e Expo Router. Permite explorar receitas, criar receitas pessoais, publicar receitas para a comunidade e salvar favoritas.
 
-## Get started
+## Pré-requisitos
 
-1. Install dependencies
+- Node.js em uma versão LTS compatível com Expo SDK 58.
+- npm, instalado junto com o Node.js.
+- Para Android: Android Studio com um emulador configurado, ou um dispositivo Android com Expo Go compatível com a versão do projeto.
+- Conexão com a internet para instalar dependências e acessar os serviços de receitas, Firebase e Cloudinary.
 
-   ```bash
-   npm install
-   ```
+## Instalação
 
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **src/app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+Abra um terminal na pasta do projeto (a pasta que contém `package.json`) e instale as dependências:
 
 ```bash
-npm run reset-project
+npm ci
 ```
 
-This command will move the starter code to the **example** directory and create a blank **src/app** directory where you can start developing.
+Se o projeto não tiver `package-lock.json`, use `npm install`.
 
-### Other setup steps
+## Executar
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+### Android
 
-## Learn more
+Com um emulador já iniciado:
 
-To learn more about developing your project with Expo, look at the following resources:
+```bash
+npm run android
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+Ou inicie o servidor Expo:
 
-## Join the community
+```bash
+npx expo start
+```
 
-Join our community of developers creating universal apps.
+Escaneie o QR code com o Expo Go compatível. O computador e o celular devem estar na mesma rede. Se a rede bloquear a conexão, tente:
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```bash
+npx expo start --tunnel
+```
+
+### Navegador
+
+```bash
+npm run web
+```
+
+### iOS
+
+O simulador iOS requer macOS com Xcode. Em um Mac:
+
+```bash
+npm run ios
+```
+
+## Firebase
+
+O app usa Firebase Authentication para contas e Cloud Firestore para receitas da comunidade. A configuração do projeto Firebase utilizado pelo app está em `src/lib/firebase.ts`.
+
+No console Firebase do projeto:
+
+1. Ative o método de autenticação **E-mail/senha**.
+2. Crie ou confirme o banco de dados do **Cloud Firestore**.
+3. Publique as regras incluídas neste repositório, necessárias para que cada usuário só possa editar ou excluir as próprias receitas:
+
+```bash
+npx firebase-tools login
+npx firebase-tools deploy --only firestore:rules --project app-receitas-d5af2
+```
+
+O usuário que for avaliar pode criar uma conta pela tela do aplicativo. A publicação, edição e exclusão de receitas da comunidade dependem de autenticação e das regras do Firestore estarem ativas.
+
+## Imagens de receitas
+
+O envio de imagens de receitas públicas usa Cloudinary. O app está configurado com um upload preset não assinado em `src/lib/cloudinary.ts`. O preset e o projeto Firebase já estão referenciados no código; não é necessário criar um arquivo `.env` para iniciar o app.
+
+## Verificação
+
+Para verificar os tipos TypeScript:
+
+```bash
+npx tsc --noEmit
+```
+
+O projeto também define `npm run lint`. Caso o ESLint não esteja configurado no ambiente, a execução pode solicitar a instalação/configuração das dependências de lint.
+
+## Problemas comuns
+
+- **O Expo Go não abre o projeto:** confirme que é uma versão compatível com o SDK do projeto; se não for, use um emulador Android ou uma development build.
+- **Não conecta ao servidor Expo:** confirme que computador e celular estão na mesma rede ou use `npx expo start --tunnel`.
+- **Login ou receitas da comunidade não funcionam:** confira a conexão, o Firebase Authentication, o Firestore e as regras publicadas.
+- **Fotos não são enviadas:** confira a conexão e se o upload preset do Cloudinary está ativo.

@@ -5,13 +5,23 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { auth } from '../../lib/firebase';
+import { uploadRecipeImage } from '../../lib/cloudinary';
+import {
+  getPublicRecipeById,
+  savePublicRecipe,
+  updatePublicRecipe,
+} from '../../lib/community';
+
 
 import { getCustomRecipes, saveCustomRecipe, updateCustomRecipe } from '../../lib/storage';
 
+
+
 export default function NewRecipeScreen() {
   const router = useRouter();
-  const { editId, editSession } = useLocalSearchParams<{
+  const { editId, editSource, editSession } = useLocalSearchParams<{
     editId?: string;
+    editSource?: string;
     editSession?: string;
   }>();
   const editIdRef = useRef(editId);
@@ -21,6 +31,9 @@ export default function NewRecipeScreen() {
   const [name, setName] = useState('');
   const [category, setCategory] = useState('');
   const [image, setImage] = useState('');
+  const [imageMimeType, setImageMimeType] = useState('image/jpeg');
+  const [imageFileName, setImageFileName] = useState('recipe.jpg');
+  const [isPublic, setIsPublic] = useState(false);
   const [ingredients, setIngredients] = useState('');
   const [instruction, setInstruction] = useState('');
   const [editingRecipeId, setEditingRecipeId] = useState<string | null>(null);
@@ -39,6 +52,18 @@ export default function NewRecipeScreen() {
   const headerHeightMeasured = useRef(false);
   const keyboardVisible = useRef(false);
 
+  const resetForm = useCallback(() => {
+    setName('');
+    setCategory('');
+    setImage('');
+    setImageMimeType('image/jpeg');
+    setImageFileName('recipe.jpg');
+    setIsPublic(false);
+    setIngredients('');
+    setInstruction('');
+    setEditingRecipeId(null);
+  }, []);
+
   useFocusEffect(
     useCallback(
       () => () => {
@@ -47,16 +72,15 @@ export default function NewRecipeScreen() {
         }
 
         editIdRef.current = undefined;
-        setName('');
-        setCategory('');
-        setImage('');
-        setIngredients('');
-        setInstruction('');
-        setEditingRecipeId(null);
+        resetForm();
         setLoadingRecipe(false);
-        router.setParams({ editId: undefined, editSession: undefined });
+        router.setParams({
+          editId: undefined,
+          editSource: undefined,
+          editSession: undefined,
+        });
       },
-      [router]
+      [resetForm, router]
     )
   );
 
@@ -73,12 +97,23 @@ export default function NewRecipeScreen() {
       const userId = auth.currentUser?.uid;
 
       try {
-        if (!editId.startsWith('local_') || !userId) {
+        if (!userId) {
           throw new Error('Você não tem permissão para editar esta receita.');
         }
 
-        const recipes = await getCustomRecipes();
-        const recipe = recipes.find((item) => item.idMeal === editId);
+        const isPublicRecipe = editSource === 'community';
+        let recipe;
+
+        if (isPublicRecipe) {
+          recipe = await getPublicRecipeById(editId);
+        } else {
+          if (!editId.startsWith('local_')) {
+            throw new Error('Você não tem permissão para editar esta receita.');
+          }
+
+          const recipes = await getCustomRecipes();
+          recipe = recipes.find((item) => item.idMeal === editId);
+        }
 
         if (!recipe || recipe.createdBy !== userId) {
           throw new Error('Você só pode editar receitas criadas por você.');
@@ -96,6 +131,7 @@ export default function NewRecipeScreen() {
           setImage(recipe.strMealThumb ?? '');
           setIngredients(recipeIngredients.join('\n'));
           setInstruction(recipe.strInstructions ?? '');
+          setIsPublic(isPublicRecipe);
           setEditingRecipeId(editId);
         }
       } catch {
@@ -118,7 +154,7 @@ export default function NewRecipeScreen() {
     return () => {
       active = false;
     };
-  }, [editId, editSession, router]);
+  }, [editId, editSession, editSource, router]);
 
   function animateHeader(collapsed: boolean, duration = 240) {
     if (headerCollapsed.current === collapsed) {
@@ -167,9 +203,30 @@ export default function NewRecipeScreen() {
       quality: 0.8,
     });
 
+
     if (!result.canceled) {
-      setImage(result.assets[0].uri);
+      const selectedImage = result.assets[0];
+
+      if (selectedImage.fileSize && selectedImage.fileSize > 5 * 1024 * 1024) {
+        Alert.alert('Imagem muito grande', 'Escolha uma imagem de até 5 MB.');
+        return;
+      }
+
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+
+      if (selectedImage.mimeType && !allowedTypes.includes(selectedImage.mimeType)) {
+        Alert.alert('Formato inválido', 'Escolha uma imagem JPG, PNG ou WebP.');
+        return;
+      }
+
+      setImage(selectedImage.uri);
+
+      const extension = selectedImage.mimeType?.split('/')[1] || 'jpg';
+
+      setImageMimeType(selectedImage.mimeType || 'image/jpeg');
+      setImageFileName(selectedImage.fileName || `recipe.${extension === 'jpeg' ? 'jpg' : extension}`);
     }
+
   }
 
   async function handleSave() {
@@ -214,32 +271,73 @@ export default function NewRecipeScreen() {
 
     try {
       setSaving(true);
-      if (editingRecipeId) {
-        await updateCustomRecipe(editingRecipeId, userId, recipe);
+
+      let recipeToSave = { ...recipe };
+
+      if (isPublic) {
+        if (image.startsWith('file://') || image.startsWith('content://')) {
+          const imageUrl = await uploadRecipeImage(
+            image,
+            imageMimeType,
+            imageFileName
+          );
+
+          recipeToSave.strMealThumb = imageUrl;
+        }
+
+        if (editingRecipeId) {
+          await updatePublicRecipe(editingRecipeId, userId, recipeToSave);
+        } else {
+          await savePublicRecipe({
+            ...recipeToSave,
+            createdBy: userId,
+            authorName:
+              auth.currentUser?.displayName ||
+              auth.currentUser?.email?.split('@')[0] ||
+              'Usuário',
+          });
+        }
+      } else if (editingRecipeId) {
+        await updateCustomRecipe(editingRecipeId, userId, recipeToSave);
       } else {
         await saveCustomRecipe({
-          ...recipe,
+          ...recipeToSave,
           idMeal: `local_${Date.now()}`,
           createdBy: userId,
         });
       }
 
-      Alert.alert(
-        editingRecipeId ? 'Receita atualizada' : 'Receita salva',
-        editingRecipeId ? 'As alterações foram salvas!' : 'Sua receita foi adicionada!',
-        [
-          {
-            text: 'OK',
-            onPress: () => router.replace('/(tabs)'),
+      const successTitle = editingRecipeId
+        ? 'Receita atualizada'
+        : isPublic
+          ? 'Receita publicada'
+          : 'Receita salva';
+
+      const successMessage = editingRecipeId
+        ? 'As alterações foram salvas!'
+        : isPublic
+          ? 'Sua receita foi compartilhada com a comunidade!'
+          : 'Sua receita foi adicionada!';
+
+      Alert.alert(successTitle, successMessage, [
+        {
+          text: 'OK',
+          onPress: () => {
+            resetForm();
+            router.replace('/(tabs)');
           },
-        ]
-      );
-    } catch {
+        },
+      ]);
+    } catch (error) {
+      console.error('Erro ao salvar receita:', error);
+
       Alert.alert(
         'Erro',
-        editingRecipeId
-          ? 'Não foi possível atualizar a receita. Verifique se ela ainda pertence à sua conta e tente novamente.'
-          : 'Não foi possível salvar a receita.'
+        isPublic
+          ? 'Não foi possível publicar sua receita. Verifique sua conexão e tente novamente.'
+          : editingRecipeId
+            ? 'Não foi possível atualizar a receita. Verifique se ela ainda pertence à sua conta e tente novamente.'
+            : 'Não foi possível salvar a receita.'
       );
     } finally {
       setSaving(false);
@@ -283,9 +381,9 @@ export default function NewRecipeScreen() {
               {
                 height: headerHeight > 0
                   ? headerProgress.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0, headerHeight],
-                    })
+                    inputRange: [0, 1],
+                    outputRange: [0, headerHeight],
+                  })
                   : undefined,
                 opacity: headerProgress,
                 transform: [
@@ -372,6 +470,52 @@ export default function NewRecipeScreen() {
             </View>
           )}
         </Pressable>
+
+        <Text style={styles.label}>Visibilidade da receita</Text>
+
+        <View style={styles.visibilityContainer}>
+          <Pressable
+            style={[
+              styles.visibilityOption,
+              !isPublic && styles.visibilityOptionActive,
+            ]}
+            onPress={() => setIsPublic(false)}
+            disabled={!!editingRecipeId}
+          >
+            <Ionicons
+              name="lock-closed-outline"
+              size={20}
+              color={!isPublic ? '#B85C38' : '#8B8179'}
+            />
+            <View style={styles.visibilityTextContainer}>
+              <Text style={styles.visibilityTitle}>Somente eu</Text>
+              <Text style={styles.visibilityDescription}>
+                Apenas você terá acesso à receita
+              </Text>
+            </View>
+          </Pressable>
+
+          <Pressable
+            style={[
+              styles.visibilityOption,
+              isPublic && styles.visibilityOptionActive,
+            ]}
+            onPress={() => setIsPublic(true)}
+            disabled={!!editingRecipeId}
+          >
+            <Ionicons
+              name="people-outline"
+              size={20}
+              color={isPublic ? '#B85C38' : '#8B8179'}
+            />
+            <View style={styles.visibilityTextContainer}>
+              <Text style={styles.visibilityTitle}>Comunidade</Text>
+              <Text style={styles.visibilityDescription}>
+                Compartilhe com outros usuários
+              </Text>
+            </View>
+          </Pressable>
+        </View>
 
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionNumber}>02</Text>
@@ -594,37 +738,74 @@ const styles = StyleSheet.create({
   },
 
   imagePicker: {
-  height: 190,
-  borderRadius: 16,
-  borderWidth: 1,
-  borderColor: '#E8DCCF',
-  borderStyle: 'dashed',
-  backgroundColor: '#FFFFFF',
-  overflow: 'hidden',
-  marginBottom: 8,
-},
+    height: 190,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E8DCCF',
+    borderStyle: 'dashed',
+    backgroundColor: '#FFFFFF',
+    overflow: 'hidden',
+    marginBottom: 8,
+  },
 
-imagePlaceholder: {
-  flex: 1,
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: 8,
-},
+  imagePlaceholder: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
 
-imagePickerTitle: {
-  color: '#34251F',
-  fontSize: 15,
-  fontWeight: '700',
-},
+  imagePickerTitle: {
+    color: '#34251F',
+    fontSize: 15,
+    fontWeight: '700',
+  },
 
-imagePickerDescription: {
-  color: '#8B8179',
-  fontSize: 12,
-},
+  imagePickerDescription: {
+    color: '#8B8179',
+    fontSize: 12,
+  },
 
-imagePreview: {
-  width: '100%',
-  height: '100%',
-  resizeMode: 'cover',
-},
+  imagePreview: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+
+  visibilityContainer: {
+    gap: 10,
+    marginBottom: 24,
+  },
+
+  visibilityOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E5D8CE',
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    },
+
+    visibilityOptionActive: {
+    borderColor: '#B85C38',
+    backgroundColor: '#FBF1EB',
+    },
+
+    visibilityTextContainer: {
+    flex: 1,
+    gap: 3,
+    },
+
+    visibilityTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#34251F',
+    },
+
+    visibilityDescription: {
+    fontSize: 12,
+    color: '#8B8179',
+    },
 });

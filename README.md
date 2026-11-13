@@ -154,7 +154,7 @@ As imagens abaixo apresentam as principais telas do aplicativo e estão armazena
 
 ### Tela para login e cadastro
 
-![Tela para login e cadastro](screenshots/Tela%20para%20login%20e%20cadastro.png)
+![Tela para login e cadastro](screenshots/Tela%20para%20o%20login%20e%20cadastro.png)
 
 ### Login
 

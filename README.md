@@ -149,35 +149,27 @@ npm run lint
 As imagens abaixo apresentam as principais telas do aplicativo e estão armazenadas na pasta `screenshots`, localizada na raiz do projeto.
 
 ### Início
-
-![Início](screenshots/Início.png)
+![Início](screenshots/In%C3%ADcio.png)
 
 ### Tela para login e cadastro
-
-![Tela para login e cadastro](screenshots/Tela%20para%20o%20login%20e%20cadastro.png)
+![Tela para login e cadastro](screenshots/Tela%20para%20login%20e%20cadastro.png)
 
 ### Login
-
 ![Login](screenshots/Login.png)
 
 ### Cadastro
-
 ![Cadastro](screenshots/Cadastro.png)
 
 ### Minhas receitas
-
 ![Minhas receitas](screenshots/Minhas%20receitas.png)
 
 ### Adicionar - Editar receita
-
 ![Adicionar - Editar receita](screenshots/Adicionar%20-%20Editar%20receita.png)
 
 ### Favoritos
-
 ![Favoritos](screenshots/Favoritos.png)
 
 ### Perfil
-
 ![Perfil](screenshots/Perfil.png)
 
 ## Problemas comuns
